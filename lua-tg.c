@@ -304,7 +304,17 @@ void push_message (struct tgl_message *M) {
 
     lua_add_num_field ("fwd_date", M->fwd_date);
   }
- 
+  
+  if (M->reply_id) {
+	lua_add_num_field ("reply_to_id", M->reply_id);
+	struct tgl_message *MR = tgl_message_get (TLS, M->reply_id);
+	// Message details available only within session for now
+    if (MR) {
+        lua_pushstring (luaState, "reply_to");
+        push_message (MR);
+        lua_settable (luaState, -3);
+    }
+  }
   lua_pushstring (luaState, "from");
   push_peer (M->from_id, tgl_peer_get (TLS, M->from_id));
   lua_settable (luaState, -3); 
