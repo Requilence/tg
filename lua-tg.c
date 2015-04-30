@@ -243,8 +243,8 @@ void push_media (struct tgl_message_media *M) {
   my_lua_checkstack (luaState, 4);
 
   switch (M->type) {
+  //case tgl_message_media_photo_encr:
   case tgl_message_media_photo:
-  case tgl_message_media_photo_encr:
     lua_newtable (luaState);
     lua_add_string_field ("type", "photo");
     break;
@@ -904,27 +904,27 @@ void lua_do_all (void) {
       p += 3;
       break;
     case lq_send_photo:
-      tgl_do_send_document (TLS, -1, ((tgl_peer_t *)lua_ptr[p + 1])->id, lua_ptr[p + 2], lua_msg_cb, lua_ptr[p]);
+      tgl_do_send_document (TLS, -1, ((tgl_peer_t *)lua_ptr[p + 1])->id, lua_ptr[p + 2], 0, lua_msg_cb, lua_ptr[p]);
       free (lua_ptr[p + 2]);
       p += 3;
       break;
     case lq_send_video:
-      tgl_do_send_document (TLS, FLAG_DOCUMENT_VIDEO, ((tgl_peer_t *)lua_ptr[p + 1])->id, lua_ptr[p + 2], lua_msg_cb, lua_ptr[p]);
+      tgl_do_send_document (TLS, FLAG_DOCUMENT_VIDEO, ((tgl_peer_t *)lua_ptr[p + 1])->id, lua_ptr[p + 2], 0, lua_msg_cb, lua_ptr[p]);
       free (lua_ptr[p + 2]);
       p += 3;
       break;
     case lq_send_audio:
-      tgl_do_send_document (TLS, FLAG_DOCUMENT_AUDIO, ((tgl_peer_t *)lua_ptr[p + 1])->id, lua_ptr[p + 2], lua_msg_cb, lua_ptr[p]);
+      tgl_do_send_document (TLS, FLAG_DOCUMENT_AUDIO, ((tgl_peer_t *)lua_ptr[p + 1])->id, lua_ptr[p + 2], 0, lua_msg_cb, lua_ptr[p]);
       free (lua_ptr[p + 2]);
       p += 3;
       break;
     case lq_send_document:
-      tgl_do_send_document (TLS, 0, ((tgl_peer_t *)lua_ptr[p + 1])->id, lua_ptr[p + 2], lua_msg_cb, lua_ptr[p]);
+      tgl_do_send_document (TLS, 0, ((tgl_peer_t *)lua_ptr[p + 1])->id, lua_ptr[p + 2], 0, lua_msg_cb, lua_ptr[p]);
       free (lua_ptr[p + 2]);
       p += 3;
       break;
     case lq_send_file:
-      tgl_do_send_document (TLS, -2, ((tgl_peer_t *)lua_ptr[p + 1])->id, lua_ptr[p + 2], lua_msg_cb, lua_ptr[p]);
+      tgl_do_send_document (TLS, -2, ((tgl_peer_t *)lua_ptr[p + 1])->id, lua_ptr[p + 2], 0, lua_msg_cb, lua_ptr[p]);
       free (lua_ptr[p + 2]);
       p += 3;
       break;
@@ -943,15 +943,17 @@ void lua_do_all (void) {
     case lq_load_audio:
     case lq_load_document:
       M = lua_ptr[p + 1];
-      if (!M || (M->media.type != tgl_message_media_photo && M->media.type != tgl_message_media_photo_encr && M->media.type != tgl_message_media_document && M->media.type != tgl_message_media_document_encr)) {
+      if (!M || (M->media.type != tgl_message_media_photo && M->media.type != tgl_message_media_document && M->media.type != tgl_message_media_document_encr)) {
         lua_file_cb (TLS, lua_ptr[p], 0, 0);
       } else {
         if (M->media.type == tgl_message_media_photo) {
-          tgl_do_load_photo (TLS, &M->media.photo, lua_file_cb, lua_ptr[p]);
+          assert (M->media.photo);
+          tgl_do_load_photo (TLS, M->media.photo, lua_file_cb, lua_ptr[p]);
         } else if (M->media.type == tgl_message_media_document) {
-          tgl_do_load_document (TLS, &M->media.document, lua_file_cb, lua_ptr[p]);
+          assert (M->media.document);
+          tgl_do_load_document (TLS, M->media.document, lua_file_cb, lua_ptr[p]);
         } else {
-          tgl_do_load_encr_document (TLS, &M->media.encr_document, lua_file_cb, lua_ptr[p]);
+          tgl_do_load_encr_document (TLS, M->media.encr_document, lua_file_cb, lua_ptr[p]);
         }
       }
       p += 2;
@@ -962,7 +964,7 @@ void lua_do_all (void) {
       if (!M || (M->media.type != tgl_message_media_document)) {
         lua_file_cb (TLS, lua_ptr[p], 0, 0);
       } else {
-        tgl_do_load_document_thumb (TLS, &M->media.document, lua_file_cb, lua_ptr[p]);
+        tgl_do_load_document_thumb (TLS, M->media.document, lua_file_cb, lua_ptr[p]);
       }
       p += 2;
       break;

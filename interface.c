@@ -168,7 +168,7 @@ void socket_answer_end (struct in_ev *ev) {
 #define mprint_start(ev,...) \
   if (!ev) { print_start (__VA_ARGS__); } \
   else { socket_answer_start (); }
-  
+
 #define mprint_end(ev,...) \
   if (!ev) { print_end (__VA_ARGS__); } \
   else { socket_answer_end (ev); }
@@ -647,31 +647,61 @@ void do_dialog_list (int arg_num, struct arg args[], struct in_ev *ev) {
 void do_send_photo (int arg_num, struct arg args[], struct in_ev *ev) {
   assert (arg_num == 2);
   if (ev) { ev->refcnt ++; }
-  tgl_do_send_document (TLS, -1, args[0].P->id, args[1].str, print_msg_success_gw, ev);
+  tgl_do_send_document (TLS, -1, args[0].P->id, args[1].str, 0, print_msg_success_gw, ev);
 }
 
 void do_send_file (int arg_num, struct arg args[], struct in_ev *ev) {
   assert (arg_num == 2);
   if (ev) { ev->refcnt ++; }
-  tgl_do_send_document (TLS, -2, args[0].P->id, args[1].str, print_msg_success_gw, ev);
+  tgl_do_send_document (TLS, -2, args[0].P->id, args[1].str, 0, print_msg_success_gw, ev);
 }
 
 void do_send_audio (int arg_num, struct arg args[], struct in_ev *ev) {
   assert (arg_num == 2);
   if (ev) { ev->refcnt ++; }
-  tgl_do_send_document (TLS, FLAG_DOCUMENT_AUDIO, args[0].P->id, args[1].str, print_msg_success_gw, ev);
+  tgl_do_send_document (TLS, FLAG_DOCUMENT_AUDIO, args[0].P->id, args[1].str, 0, print_msg_success_gw, ev);
 }
 
 void do_send_video (int arg_num, struct arg args[], struct in_ev *ev) {
   assert (arg_num == 2);
   if (ev) { ev->refcnt ++; }
-  tgl_do_send_document (TLS, FLAG_DOCUMENT_VIDEO, args[0].P->id, args[1].str, print_msg_success_gw, ev);
+  tgl_do_send_document (TLS, FLAG_DOCUMENT_VIDEO, args[0].P->id, args[1].str, 0, print_msg_success_gw, ev);
 }
 
 void do_send_document (int arg_num, struct arg args[], struct in_ev *ev) {
   assert (arg_num == 2);
   if (ev) { ev->refcnt ++; }
-  tgl_do_send_document (TLS, 0, args[0].P->id, args[1].str, print_msg_success_gw, ev);
+  tgl_do_send_document (TLS, 0, args[0].P->id, args[1].str, 0, print_msg_success_gw, ev);
+}
+
+void do_reply_photo (int arg_num, struct arg args[], struct in_ev *ev) {
+  assert (arg_num == 2);
+  if (ev) { ev->refcnt ++; }
+  tgl_do_reply_document (TLS, -1, args[0].num, args[2].str, print_msg_success_gw, ev);
+}
+
+void do_reply_file (int arg_num, struct arg args[], struct in_ev *ev) {
+  assert (arg_num == 2);
+  if (ev) { ev->refcnt ++; }
+  tgl_do_reply_document (TLS, -2, args[0].num, args[1].str, print_msg_success_gw, ev);
+}
+
+void do_reply_audio (int arg_num, struct arg args[], struct in_ev *ev) {
+  assert (arg_num == 2);
+  if (ev) { ev->refcnt ++; }
+  tgl_do_reply_document (TLS, FLAG_DOCUMENT_AUDIO, args[0].num, args[1].str, print_msg_success_gw, ev);
+}
+
+void do_reply_video (int arg_num, struct arg args[], struct in_ev *ev) {
+  assert (arg_num == 2);
+  if (ev) { ev->refcnt ++; }
+  tgl_do_reply_document (TLS, FLAG_DOCUMENT_VIDEO, args[0].num, args[1].str, print_msg_success_gw, ev);
+}
+
+void do_reply_document (int arg_num, struct arg args[], struct in_ev *ev) {
+  assert (arg_num == 2);
+  if (ev) { ev->refcnt ++; }
+  tgl_do_reply_document (TLS, 0, args[0].num, args[1].str, print_msg_success_gw, ev);
 }
 
 void do_send_text (int arg_num, struct arg args[], struct in_ev *ev) {
@@ -739,11 +769,6 @@ char *str_replace(char *orig, char *rep, char *with) {
         ins = tmp + len_rep;
     }
 
-    // first time through the loop, all the variable are set correctly
-    // from here on,
-    //    tmp points to the end of the result string
-    //    ins points to the next occurrence of rep in orig
-    //    orig points to the remainder of orig after "end of rep"
     tmp = result = malloc(strlen(orig) + (len_with - len_rep) * count + 1);
 
     if (!result)
@@ -760,13 +785,17 @@ char *str_replace(char *orig, char *rep, char *with) {
     return result;
 }
 
- 
+void do_get_message (int arg_num, struct arg args[], struct in_ev *ev) {
+  assert (arg_num == 1);
+  if (ev) { ev->refcnt ++; }
+  tgl_do_get_message (TLS, args[0].num, print_msg_gw, ev);
+}
+
 void do_msg (int arg_num, struct arg args[], struct in_ev *ev) {
   assert (arg_num == 2);
   if (ev) { ev->refcnt ++; }
 
   char *new=str_replace(args[1].str,"\uFFFD","\n");
-  
   tgl_do_send_message (TLS, args[0].P->id, new, strlen (new), print_msg_success_gw, ev);
 }
 
@@ -800,11 +829,17 @@ void do_ ## act ## _ ## tp (int arg_num, struct arg args[], struct in_ev *ev) { 
   struct tgl_message *M = tgl_message_get (TLS, args[0].num);\
   if (M && !(M->flags & TGLMF_SERVICE)) {\
     if (M->media.type == tgl_message_media_photo) { \
-      tgl_do_load_photo (TLS, &M->media.photo, actf, ev);\
+      tgl_do_load_photo (TLS, M->media.photo, actf, ev);\
     } else if (M->media.type == tgl_message_media_document) {\
-      tgl_do_load_document (TLS, &M->media.document, actf, ev);\
-    } else if (M->media.type == tgl_message_media_photo_encr || M->media.type == tgl_message_media_document_encr) {\
-      tgl_do_load_encr_document (TLS, &M->media.encr_document, actf, ev); \
+      tgl_do_load_document (TLS, M->media.document, actf, ev);\
+    } else if (M->media.type == tgl_message_media_document_encr) {\
+      tgl_do_load_encr_document (TLS, M->media.encr_document, actf, ev); \
+    } else if (M->media.type == tgl_message_media_webpage) {\
+      actf (TLS, ev, 1, M->media.webpage->url);\
+    } else if (M->media.type == tgl_message_media_geo || M->media.type == tgl_message_media_venue) { \
+      static char s[1000]; \
+      sprintf (s, "https://maps.google.com/?q=%.6lf,%.6lf", M->media.geo.latitude, M->media.geo.longitude);\
+      actf (TLS, ev, 1, s);\
     }\
   }\
 }
@@ -815,7 +850,7 @@ void do_ ## act ## _ ## tp ## _thumb (int arg_num, struct arg args[], struct in_
   struct tgl_message *M = tgl_message_get (TLS, args[0].num);\
   if (M && !(M->flags & TGLMF_SERVICE)) {\
     if (M->media.type == tgl_message_media_document) {\
-      tgl_do_load_document_thumb (TLS, &M->media.document, actf, ev);\
+      tgl_do_load_document_thumb (TLS, M->media.document, actf, ev);\
     }\
   }\
 }
@@ -836,6 +871,7 @@ DO_LOAD_PHOTO(file, open, open_filename_gw)
 DO_LOAD_PHOTO_THUMB(video, open, open_filename_gw)
 DO_LOAD_PHOTO_THUMB(document, open, open_filename_gw)
 DO_LOAD_PHOTO_THUMB(file, open, open_filename_gw)
+DO_LOAD_PHOTO(any, open, open_filename_gw)
 
 void do_add_contact (int arg_num, struct arg args[], struct in_ev *ev) {
   assert (arg_num == 3);
@@ -1079,6 +1115,18 @@ void do_set_username (int arg_num, struct arg args[], struct in_ev *ev) {
   tgl_do_set_username (TLS, args[0].str, print_user_gw, ev);
 }
 
+void do_load_user_photo  (int arg_num, struct arg args[], struct in_ev *ev) {
+  assert (arg_num == 1);
+  if (ev) { ev->refcnt ++; }
+  tgl_do_load_file_location (TLS, &args[0].P->user.photo_big, print_filename_gw, ev);
+}
+
+void do_view_user_photo  (int arg_num, struct arg args[], struct in_ev *ev) {
+  assert (arg_num == 1);
+  if (ev) { ev->refcnt ++; }
+  tgl_do_load_file_location (TLS, &args[0].P->user.photo_big, open_filename_gw, ev);
+}
+
 void do_contact_search (int arg_num, struct arg args[], struct in_ev *ev) {
   assert (arg_num == 2);
   if (ev) { ev->refcnt ++; }
@@ -1143,7 +1191,13 @@ void do_import_card (int arg_num, struct arg args[], struct in_ev *ev) {
 void do_send_contact (int arg_num, struct arg args[], struct in_ev *ev) {
   assert (arg_num == 4);
   if (ev) { ev->refcnt ++; }
-  tgl_do_send_contact (TLS, args[0].P->id, args[1].str, strlen (args[1].str), args[2].str, strlen (args[2].str), args[3].str, strlen (args[3].str), print_msg_gw, ev);
+  tgl_do_send_contact (TLS, args[0].P->id, args[1].str, strlen (args[1].str), args[2].str, strlen (args[2].str), args[3].str, strlen (args[3].str), print_msg_success_gw, ev);
+}
+
+void do_reply_contact (int arg_num, struct arg args[], struct in_ev *ev) {
+  assert (arg_num == 4);
+  if (ev) { ev->refcnt ++; }
+  tgl_do_reply_contact (TLS, args[0].num, args[1].str, strlen (args[1].str), args[2].str, strlen (args[2].str), args[3].str, strlen (args[3].str), print_msg_success_gw, ev);
 }
 
 void do_main_session (int arg_num, struct arg args[], struct in_ev *ev) {
@@ -1188,7 +1242,7 @@ void do_clear (int arg_num, struct arg args[], struct in_ev *ev) {
   logprintf ("Do_clear\n");
   free (default_username);
   free (config_filename);
-  free (prefix);
+  //free (prefix);
   free (auth_file_name);
   free (state_file_name);
   free (secret_chat_file_name);
@@ -1198,8 +1252,9 @@ void do_clear (int arg_num, struct arg args[], struct in_ev *ev) {
   free (lua_file);
   clear_history ();
   event_free (term_ev);
-  event_base_free (TLS->ev_base);
+  struct event_base *ev_base = TLS->ev_base;
   tgl_free_all (TLS);
+  event_base_free (ev_base);
   do_halt (0);
 }
 
@@ -1207,6 +1262,12 @@ void do_send_location (int arg_num, struct arg args[], struct in_ev *ev) {
   assert (arg_num == 3);
   if (ev) { ev->refcnt ++; }
   tgl_do_send_location (TLS, args[0].P->id, args[1].dval, args[2].dval, print_msg_success_gw, ev);
+}
+
+void do_reply_location (int arg_num, struct arg args[], struct in_ev *ev) {
+  assert (arg_num == 3);
+  if (ev) { ev->refcnt ++; }
+  tgl_do_reply_location (TLS, args[0].num, args[1].dval, args[2].dval, print_msg_success_gw, ev);
 }
 
 
@@ -1230,15 +1291,18 @@ struct command commands[] = {
   {"export_card", {ca_none}, do_export_card, "export_card\tPrints card that can be imported by another user with import_card method"},
   {"fwd", {ca_peer, ca_number, ca_period, ca_none}, do_fwd, "fwd <peer> <msg-id>+\tForwards message to peer. Forward to secret chats is forbidden"},
   {"fwd_media", {ca_peer, ca_number, ca_none}, do_fwd_media, "fwd <peer> <msg-id>\tForwards message media to peer. Forward to secret chats is forbidden. Result slightly differs from fwd"},
+  {"get_message", {ca_number, ca_none}, do_get_message, "get_message <msg-id>\tGet message by id"},
   {"help", {ca_none}, do_help, "help\tPrints this help"},
   {"history", {ca_peer, ca_number | ca_optional, ca_number | ca_optional, ca_none}, do_history, "history <peer> [limit] [offset]\tPrints messages with this peer (most recent message lower). Also marks messages as read"},
   {"import_card", {ca_string, ca_none}, do_import_card, "import_card <card>\tGets user by card and prints it name. You can then send messages to him as usual"},
   {"load_audio", {ca_number, ca_none}, do_load_audio, "load_audio <msg-id>\tDownloads file to downloads dirs. Prints file name after download end"},
+  {"load_chat_photo", {ca_chat, ca_none}, do_load_user_photo, "load_chat_photo <chat>\tDownloads file to downloads dirs. Prints file name after download end"},
   {"load_document", {ca_number, ca_none}, do_load_document, "load_document <msg-id>\tDownloads file to downloads dirs. Prints file name after download end"},
   {"load_document_thumb", {ca_number, ca_none}, do_load_document_thumb, "load_document_thumb <msg-id>\tDownloads file to downloads dirs. Prints file name after download end"},
   {"load_file", {ca_number, ca_none}, do_load_file, "load_file <msg-id>\tDownloads file to downloads dirs. Prints file name after download end"},
   {"load_file_thumb", {ca_number, ca_none}, do_load_file_thumb, "load_file_thumb <msg-id>\tDownloads file to downloads dirs. Prints file name after download end"},
   {"load_photo", {ca_number, ca_none}, do_load_photo, "load_photo <msg-id>\tDownloads file to downloads dirs. Prints file name after download end"},
+  {"load_user_photo", {ca_user, ca_none}, do_load_user_photo, "load_user_photo <user>\tDownloads file to downloads dirs. Prints file name after download end"},
   {"load_video", {ca_number, ca_none}, do_load_video, "load_video <msg-id>\tDownloads file to downloads dirs. Prints file name after download end"},
   {"load_video_thumb", {ca_number, ca_none}, do_load_video_thumb, "load_video_thumb <msg-id>\tDownloads file to downloads dirs. Prints file name after download end"},
   {"main_session", {ca_none}, do_main_session, "main_session\tSends updates to this connection (or terminal). Useful only with listening socket"},
@@ -1248,6 +1312,14 @@ struct command commands[] = {
   {"rename_chat", {ca_chat, ca_string_end, ca_none}, do_rename_chat, "rename_chat <chat> <new name>\tRenames chat"},
   {"rename_contact", {ca_user, ca_string, ca_string, ca_none}, do_rename_contact, "rename_contact <user> <first name> <last name>\tRenames contact"},
   {"reply", {ca_number, ca_string_end, ca_none}, do_reply, "msg <msg-id> <text>\tSends text reply to message"},
+  {"reply_audio", {ca_number, ca_file_name_end, ca_none}, do_send_audio, "reply_audio <msg-id> <file>\tSends audio to peer"},
+  {"reply_contact", {ca_number, ca_string, ca_string, ca_string, ca_none}, do_reply_contact, "reply_contact <msg-id> <phone> <first-name> <last-name>\tSends contact (not necessary telegram user)"},
+  {"reply_document", {ca_number, ca_file_name_end, ca_none}, do_reply_document, "reply_document <msg-id> <file>\tSends document to peer"},
+  {"reply_file", {ca_number, ca_file_name_end, ca_none}, do_reply_file, "reply_file <msg-id> <file>\tSends document to peer"},
+  {"reply_location", {ca_number, ca_double, ca_double, ca_none}, do_reply_location, "reply_location <msg-id> <latitude> <longitude>\tSends geo location"},
+  {"reply_photo", {ca_number, ca_file_name_end, ca_none}, do_reply_photo, "reply_photo <msg-id> <file>\tSends photo to peer"},
+  //{"reply_text", {ca_number, ca_file_name_end, ca_none}, do_reply_text, "reply_text <msg-id> <file>\tSends contents of text file as plain text message"},
+  {"reply_video", {ca_number, ca_file_name_end, ca_none}, do_reply_video, "reply_video <msg-id> <file>\tSends video to peer"},
 //  {"restore_msg", {ca_number, ca_none}, do_restore_msg, "restore_msg <msg-id>\tRestores message. Only available shortly (one hour?) after deletion"},
   {"safe_quit", {ca_none}, do_safe_quit, "safe_quit\tWaits for all queries to end, then quits"},
   {"search", {ca_peer | ca_optional, ca_number | ca_optional, ca_number | ca_optional, ca_number | ca_optional, ca_number | ca_optional, ca_string_end}, do_search, "search [peer] [limit] [from] [to] [offset] pattern\tSearch for pattern in messages from date from to date to (unixtime) in messages with peer (if peer not present, in all messages)"},
@@ -1274,13 +1346,16 @@ struct command commands[] = {
   {"status_offline", {ca_none}, do_status_offline, "status_offline\tSets status as offline"},
   {"user_info", {ca_user, ca_none}, do_user_info, "user_info <user>\tPrints info about user (id, last online, phone)"},
   {"view_audio", {ca_number, ca_none}, do_open_audio, "view_audio <msg-id>\tDownloads file to downloads dirs. Then tries to open it with system default action"},
+  {"view_chat_photo", {ca_chat, ca_none}, do_view_user_photo, "view_chat_photo <chat>\tDownloads file to downloads dirs. Then tries to open it with system default action"},
   {"view_document", {ca_number, ca_none}, do_open_document, "view_document <msg-id>\tDownloads file to downloads dirs. Then tries to open it with system default action"},
   {"view_document_thumb", {ca_number, ca_none}, do_open_document_thumb, "view_document_thumb <msg-id>\tDownloads file to downloads dirs. Then tries to open it with system default action"},
   {"view_file", {ca_number, ca_none}, do_open_file, "view_file <msg-id>\tDownloads file to downloads dirs. Then tries to open it with system default action"},
   {"view_file_thumb", {ca_number, ca_none}, do_open_file_thumb, "view_file_thumb <msg-id>\tDownloads file to downloads dirs. Then tries to open it with system default action"},
   {"view_photo", {ca_number, ca_none}, do_open_photo, "view_photo <msg-id>\tDownloads file to downloads dirs. Then tries to open it with system default action"},
+  {"view_user_photo", {ca_user, ca_none}, do_view_user_photo, "view_user_photo <user>\tDownloads file to downloads dirs. Then tries to open it with system default action"},
   {"view_video", {ca_number, ca_none}, do_open_video, "view_video <msg-id>\tDownloads file to downloads dirs. Then tries to open it with system default action"},
   {"view_video_thumb", {ca_number, ca_none}, do_open_video_thumb, "view_video_thumb <msg-id>\tDownloads file to downloads dirs. Then tries to open it with system default action"},
+  {"view", {ca_number, ca_none}, do_open_any, "view <msg-id>\tTries to view message contents"},
   {"visualize_key", {ca_secret_chat, ca_none}, do_visualize_key, "visualize_key <secret chat>\tPrints visualization of encryption key (first 16 bytes sha1 of it in fact}"},
   {0, {ca_none}, 0, ""}
 };
@@ -1545,11 +1620,9 @@ void work_modifier (const char *s, int l) {
 }
 
 void print_fail (struct in_ev *ev) {
-  if (ev) {
-    mprint_start (ev);
-    mprintf (ev, "FAIL\n");
-    mprint_end (ev);
-  }
+  mprint_start (ev);
+  mprintf (ev, "FAIL\n");
+  mprint_end (ev);
 }
 
 void print_success (struct in_ev *ev) {
@@ -2611,102 +2684,101 @@ void print_media (struct in_ev *ev, struct tgl_message_media *M) {
     case tgl_message_media_none:
       return;
     case tgl_message_media_photo:
-      if (M->photo.caption && strlen (M->photo.caption)) {
-        mprintf (ev, "[photo %s]", M->photo.caption);
+      assert (M->photo);
+      if (M->photo->caption && strlen (M->photo->caption)) {
+        mprintf (ev, "[photo %s]", M->photo->caption);
       } else {
         mprintf (ev, "[photo]");
       }
       return;
     case tgl_message_media_document:
       mprintf (ev, "[");
-      if (M->document.flags & FLAG_DOCUMENT_IMAGE) {
+      assert (M->document);
+      if (M->document->flags & FLAG_DOCUMENT_IMAGE) {
         mprintf (ev, "image");
-      } else if (M->document.flags & FLAG_DOCUMENT_AUDIO) {
+      } else if (M->document->flags & FLAG_DOCUMENT_AUDIO) {
         mprintf (ev, "audio");
-      } else if (M->document.flags & FLAG_DOCUMENT_VIDEO) {
+      } else if (M->document->flags & FLAG_DOCUMENT_VIDEO) {
         mprintf (ev, "video");
-      } else if (M->document.flags & FLAG_DOCUMENT_STICKER) {
+      } else if (M->document->flags & FLAG_DOCUMENT_STICKER) {
         mprintf (ev, "sticker");
       } else {
         mprintf (ev, "document");
       }
 
-      if (M->document.caption && strlen (M->document.caption)) {
-        mprintf (ev, " %s:", M->document.caption);
+      if (M->document->caption && strlen (M->document->caption)) {
+        mprintf (ev, " %s:", M->document->caption);
       } else {
         mprintf (ev, ":");
       }
       
-      if (M->document.mime_type) {
-        mprintf (ev, " type=%s", M->document.mime_type);
+      if (M->document->mime_type) {
+        mprintf (ev, " type=%s", M->document->mime_type);
       }
 
-      if (M->document.w && M->document.h) {
-        mprintf (ev, " size=%dx%d", M->document.w, M->document.h);
+      if (M->document->w && M->document->h) {
+        mprintf (ev, " size=%dx%d", M->document->w, M->document->h);
       }
 
-      if (M->document.duration) {
-        mprintf (ev, " duration=%d", M->document.duration);
+      if (M->document->duration) {
+        mprintf (ev, " duration=%d", M->document->duration);
       }
       
       mprintf (ev, " size=");
-      if (M->document.size < (1 << 10)) {
-        mprintf (ev, "%dB", M->document.size);
-      } else if (M->document.size < (1 << 20)) {
-        mprintf (ev, "%dKiB", M->document.size >> 10);
-      } else if (M->document.size < (1 << 30)) {
-        mprintf (ev, "%dMiB", M->document.size >> 20);
+      if (M->document->size < (1 << 10)) {
+        mprintf (ev, "%dB", M->document->size);
+      } else if (M->document->size < (1 << 20)) {
+        mprintf (ev, "%dKiB", M->document->size >> 10);
+      } else if (M->document->size < (1 << 30)) {
+        mprintf (ev, "%dMiB", M->document->size >> 20);
       } else {
-        mprintf (ev, "%dGiB", M->document.size >> 30);
+        mprintf (ev, "%dGiB", M->document->size >> 30);
       }
       
       mprintf (ev, "]");
 
       return;
-    case tgl_message_media_photo_encr:
-      mprintf (ev, "[photo]");
-      return;
     case tgl_message_media_document_encr:
       mprintf (ev, "[");
-      if (M->encr_document.flags & FLAG_DOCUMENT_IMAGE) {
+      if (M->encr_document->flags & FLAG_DOCUMENT_IMAGE) {
         mprintf (ev, "image");
-      } else if (M->encr_document.flags & FLAG_DOCUMENT_AUDIO) {
+      } else if (M->encr_document->flags & FLAG_DOCUMENT_AUDIO) {
         mprintf (ev, "audio");
-      } else if (M->encr_document.flags & FLAG_DOCUMENT_VIDEO) {
+      } else if (M->encr_document->flags & FLAG_DOCUMENT_VIDEO) {
         mprintf (ev, "video");
-      } else if (M->encr_document.flags & FLAG_DOCUMENT_STICKER) {
+      } else if (M->encr_document->flags & FLAG_DOCUMENT_STICKER) {
         mprintf (ev, "sticker");
       } else {
         mprintf (ev, "document");
       }
 
-      if (M->encr_document.caption && strlen (M->encr_document.caption)) {
-        mprintf (ev, " %s:", M->encr_document.caption);
+      if (M->encr_document->caption && strlen (M->encr_document->caption)) {
+        mprintf (ev, " %s:", M->encr_document->caption);
       } else {
         mprintf (ev, ":");
       }
       
-      if (M->encr_document.mime_type) {
-        mprintf (ev, " type=%s", M->encr_document.mime_type);
+      if (M->encr_document->mime_type) {
+        mprintf (ev, " type=%s", M->encr_document->mime_type);
       }
 
-      if (M->document.w && M->document.h) {
-        mprintf (ev, " size=%dx%d", M->encr_document.w, M->encr_document.h);
+      if (M->encr_document->w && M->encr_document->h) {
+        mprintf (ev, " size=%dx%d", M->encr_document->w, M->encr_document->h);
       }
 
-      if (M->encr_document.duration) {
-        mprintf (ev, " duration=%d", M->encr_document.duration);
+      if (M->encr_document->duration) {
+        mprintf (ev, " duration=%d", M->encr_document->duration);
       }
       
       mprintf (ev, " size=");
-      if (M->encr_document.size < (1 << 10)) {
-        mprintf (ev, "%dB", M->encr_document.size);
-      } else if (M->encr_document.size < (1 << 20)) {
-        mprintf (ev, "%dKiB", M->encr_document.size >> 10);
-      } else if (M->encr_document.size < (1 << 30)) {
-        mprintf (ev, "%dMiB", M->encr_document.size >> 20);
+      if (M->encr_document->size < (1 << 10)) {
+        mprintf (ev, "%dB", M->encr_document->size);
+      } else if (M->encr_document->size < (1 << 20)) {
+        mprintf (ev, "%dKiB", M->encr_document->size >> 10);
+      } else if (M->encr_document->size < (1 << 30)) {
+        mprintf (ev, "%dMiB", M->encr_document->size >> 20);
       } else {
-        mprintf (ev, "%dGiB", M->encr_document.size >> 30);
+        mprintf (ev, "%dGiB", M->encr_document->size >> 30);
       }
       
       mprintf (ev, "]");
@@ -2727,17 +2799,17 @@ void print_media (struct in_ev *ev, struct tgl_message_media *M) {
       return;
     case tgl_message_media_webpage:
       mprintf (ev, "[webpage:");
-      if (M->webpage.url) {
-        mprintf (ev, " url:'%s'", M->webpage.url);
+      if (M->webpage->url) {
+        mprintf (ev, " url:'%s'", M->webpage->url);
       }
-      if (M->webpage.title) {
-        mprintf (ev, " title:'%s'", M->webpage.title);
+      if (M->webpage->title) {
+        mprintf (ev, " title:'%s'", M->webpage->title);
       }
-      if (M->webpage.description) {
-        mprintf (ev, " description:'%s'", M->webpage.description);
+      if (M->webpage->description) {
+        mprintf (ev, " description:'%s'", M->webpage->description);
       }
-      if (M->webpage.author) {
-        mprintf (ev, " author:'%s'", M->webpage.author);
+      if (M->webpage->author) {
+        mprintf (ev, " author:'%s'", M->webpage->author);
       }
       mprintf (ev, "]");
       break;
@@ -3057,6 +3129,9 @@ void print_message (struct in_ev *ev, struct tgl_message *M) {
   }
   if (M->reply_id) {
     mprintf (ev, "[reply to %d] ", M->reply_id);
+  }
+  if (M->flags & TGLMF_MENTION) {
+    mprintf (ev, "[mention] ");
   }
   if (M->message && strlen (M->message)) {
     mprintf (ev, "%s", M->message);
