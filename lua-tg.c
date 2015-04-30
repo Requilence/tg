@@ -99,6 +99,7 @@ void push_user (tgl_peer_t *P) {
   my_lua_checkstack (luaState, 4);
   lua_add_string_field ("first_name", P->user.first_name);
   lua_add_string_field ("last_name", P->user.last_name);
+  lua_add_string_field ("username", P->user.username);
   lua_add_string_field ("real_first_name", P->user.real_first_name);
   lua_add_string_field ("real_last_name", P->user.real_last_name);
   lua_add_string_field ("phone", P->user.phone);
@@ -220,7 +221,6 @@ void push_peer (tgl_peer_id_t id, tgl_peer_t *P) {
   
     return;
   }
-  
   lua_add_string_field ("print_name", P->print_name);
   lua_add_num_field ("flags", P->flags);
   
