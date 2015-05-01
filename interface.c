@@ -746,46 +746,6 @@ void do_fwd_media (int arg_num, struct arg args[], struct in_ev *ev) {
   tgl_do_forward_message (TLS, args[0].P->id, args[1].num, print_msg_success_gw, ev);
 }
 
-char *str_replace(char *orig, char *rep, char *with) {
-    char *result; // the return string
-    char *ins;    // the next insert point
-    char *tmp;    // varies
-    int len_rep;  // length of rep
-    int len_with; // length of with
-    int len_front; // distance between rep and end of last rep
-    int count;    // number of replacements
-
-    if (!orig)
-        return NULL;
-    if (!rep)
-        rep = "";
-    len_rep = strlen(rep);
-    if (!with)
-        with = "";
-    len_with = strlen(with);
-
-    ins = orig;
-    tmp = "";
-    for (count = (0); (tmp = (strstr(ins, rep))); (++count)) {
-        ins = tmp + len_rep;
-    }
-
-    tmp = result = malloc(strlen(orig) + (len_with - len_rep) * count + 1);
-
-    if (!result)
-        return NULL;
-
-    while (count--) {
-        ins = strstr(orig, rep);
-        len_front = ins - orig;
-        tmp = strncpy(tmp, orig, len_front) + len_front;
-        tmp = strcpy(tmp, with) + len_with;
-        orig += len_front + len_rep; // move to next "end of rep"
-    }
-    strcpy(tmp, orig);
-    return result;
-}
-
 void do_get_message (int arg_num, struct arg args[], struct in_ev *ev) {
   assert (arg_num == 1);
   if (ev) { ev->refcnt ++; }
@@ -796,8 +756,7 @@ void do_msg (int arg_num, struct arg args[], struct in_ev *ev) {
   assert (arg_num == 2);
   if (ev) { ev->refcnt ++; }
 
-  char *new=str_replace(args[1].str,"\uFFFD","\n");
-  tgl_do_send_message (TLS, args[0].P->id, new, strlen (new), print_msg_success_gw, ev);
+  tgl_do_send_message (TLS, args[0].P->id, args[1].str, strlen (args[1].str), print_msg_success_gw, ev);
 }
 
 void do_reply (int arg_num, struct arg args[], struct in_ev *ev) {
