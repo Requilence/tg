@@ -588,6 +588,7 @@ void print_dialog_list_gw (struct tgl_state *TLS, void *extra, int success, int 
 void print_chat_info_gw (struct tgl_state *TLS, void *extra, int success, struct tgl_chat *C);
 void print_user_info_gw (struct tgl_state *TLS, void *extra, int success, struct tgl_user *C);
 void print_filename_gw (struct tgl_state *TLS, void *extra, int success, char *name);
+void print_string_gw (struct tgl_state *TLS, void *extra, int success, const char *name);
 void open_filename_gw (struct tgl_state *TLS, void *extra, int success, char *name);
 void print_secret_chat_gw (struct tgl_state *TLS, void *extra, int success, struct tgl_secret_chat *E);
 void print_card_gw (struct tgl_state *TLS, void *extra, int success, int size, int *card);
@@ -821,6 +822,12 @@ void do_rename_chat (int arg_num, struct arg args[], struct in_ev *ev) {
   assert (arg_num == 2);
   if (ev) { ev->refcnt ++; }
   tgl_do_rename_chat (TLS, args[0].P->id, args[1].str, print_success_gw, ev);
+}
+
+void do_import_chat_link (int arg_num, struct arg args[], struct in_ev *ev) {
+  assert (arg_num == 1);
+  if (ev) { ev->refcnt ++; }
+  tgl_do_import_chat_link (TLS, args[0].str, strlen (args[0].str), print_success_gw, ev);
 }
 
 #define DO_LOAD_PHOTO(tp,act,actf) \
@@ -1156,6 +1163,12 @@ void do_export_card (int arg_num, struct arg args[], struct in_ev *ev) {
   tgl_do_export_card (TLS, print_card_gw, ev);
 }
 
+void do_export_chat_link (int arg_num, struct arg args[], struct in_ev *ev) {
+  assert (arg_num == 1);
+  if (ev) { ev->refcnt ++; }
+  tgl_do_export_chat_link (TLS, args[0].P->id, print_string_gw, ev);
+}
+
 void do_import_card (int arg_num, struct arg args[], struct in_ev *ev) {
   assert (arg_num == 1);
   char *s = args[0].str;
@@ -1289,12 +1302,14 @@ struct command commands[] = {
   {"delete_msg", {ca_number, ca_none}, do_delete_msg, "delete_msg <msg-id>\tDeletes message"},
   {"dialog_list", {ca_number | ca_optional, ca_number | ca_optional, ca_none}, do_dialog_list, "dialog_list [limit=100] [offset=0]\tList of last conversations"},
   {"export_card", {ca_none}, do_export_card, "export_card\tPrints card that can be imported by another user with import_card method"},
+  {"export_chat_link", {ca_chat, ca_none}, do_export_chat_link, "export_chat_link\tPrints chat link that can be used to join to chat"},
   {"fwd", {ca_peer, ca_number, ca_period, ca_none}, do_fwd, "fwd <peer> <msg-id>+\tForwards message to peer. Forward to secret chats is forbidden"},
   {"fwd_media", {ca_peer, ca_number, ca_none}, do_fwd_media, "fwd <peer> <msg-id>\tForwards message media to peer. Forward to secret chats is forbidden. Result slightly differs from fwd"},
   {"get_message", {ca_number, ca_none}, do_get_message, "get_message <msg-id>\tGet message by id"},
   {"help", {ca_none}, do_help, "help\tPrints this help"},
   {"history", {ca_peer, ca_number | ca_optional, ca_number | ca_optional, ca_none}, do_history, "history <peer> [limit] [offset]\tPrints messages with this peer (most recent message lower). Also marks messages as read"},
   {"import_card", {ca_string, ca_none}, do_import_card, "import_card <card>\tGets user by card and prints it name. You can then send messages to him as usual"},
+  {"import_chat_link", {ca_string, ca_none}, do_import_chat_link, "impoty_chat_link <hash>\tJoins to chat by link"},
   {"load_audio", {ca_number, ca_none}, do_load_audio, "load_audio <msg-id>\tDownloads file to downloads dirs. Prints file name after download end"},
   {"load_chat_photo", {ca_chat, ca_none}, do_load_user_photo, "load_chat_photo <chat>\tDownloads file to downloads dirs. Prints file name after download end"},
   {"load_document", {ca_number, ca_none}, do_load_document, "load_document <msg-id>\tDownloads file to downloads dirs. Prints file name after download end"},
@@ -1728,6 +1743,19 @@ void print_filename_gw (struct tgl_state *TLSR, void *extra, int success, char *
   if (!success) { print_fail (ev); return; }
   mprint_start (ev);
   mprintf (ev, "Saved to %s\n", name);
+  mprint_end (ev);
+}
+
+void print_string_gw (struct tgl_state *TLSR, void *extra, int success, const char *name) {
+  assert (TLS == TLSR);
+  struct in_ev *ev = extra;
+  if (ev && !--ev->refcnt) {
+    free (ev);
+    return;
+  }
+  if (!success) { print_fail (ev); return; }
+  mprint_start (ev);
+  mprintf (ev, "%s\n", name);
   mprint_end (ev);
 }
 
@@ -2785,7 +2813,7 @@ void print_media (struct in_ev *ev, struct tgl_message_media *M) {
 
       return;
     case tgl_message_media_geo:
-      mprintf (ev, "[geo] https://maps.google.com/?q=%.6lf,%.6lf", M->geo.latitude, M->geo.longitude);
+      mprintf (ev, "[geo https://maps.google.com/?q=%.6lf,%.6lf]", M->geo.latitude, M->geo.longitude);
       return;
     case tgl_message_media_contact:
       mprintf (ev, "[contact] ");
@@ -2799,6 +2827,7 @@ void print_media (struct in_ev *ev, struct tgl_message_media *M) {
       return;
     case tgl_message_media_webpage:
       mprintf (ev, "[webpage:");
+      assert (M->webpage);
       if (M->webpage->url) {
         mprintf (ev, " url:'%s'", M->webpage->url);
       }
@@ -2813,6 +2842,26 @@ void print_media (struct in_ev *ev, struct tgl_message_media *M) {
       }
       mprintf (ev, "]");
       break;
+    case tgl_message_media_venue:
+      mprintf (ev, "[geo https://maps.google.com/?q=%.6lf,%.6lf", M->venue.geo.latitude, M->venue.geo.longitude);
+      
+      if (M->venue.title) {
+        mprintf (ev, " title:'%s'", M->venue.title);
+      }
+      
+      if (M->venue.address) {
+        mprintf (ev, " address:'%s'", M->venue.address);
+      }
+      if (M->venue.provider) {
+        mprintf (ev, " provider:'%s'", M->venue.provider);
+      }
+      if (M->venue.venue_id) {
+        mprintf (ev, " id:'%s'", M->venue.venue_id);
+      }
+
+      mprintf (ev, "]");
+      return;
+      
     default:
       mprintf (ev, "x = %d\n", M->type);
       assert (0);
@@ -2959,6 +3008,11 @@ void print_service_message (struct in_ev *ev, struct tgl_message *M) {
     break;
   case tgl_message_action_chat_add_user:
     mprintf (ev, " added user ");
+    print_user_name (ev, tgl_set_peer_id (TGL_PEER_USER, M->action.user), tgl_peer_get (TLS, tgl_set_peer_id (TGL_PEER_USER, M->action.user)));
+    mprintf (ev, "\n");
+    break;
+  case tgl_message_action_chat_add_user_by_link:
+    mprintf (ev, " added by link from ");
     print_user_name (ev, tgl_set_peer_id (TGL_PEER_USER, M->action.user), tgl_peer_get (TLS, tgl_set_peer_id (TGL_PEER_USER, M->action.user)));
     mprintf (ev, "\n");
     break;
