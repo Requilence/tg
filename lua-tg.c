@@ -248,6 +248,7 @@ void push_media (struct tgl_message_media *M) {
   case tgl_message_media_photo:
     lua_newtable (luaState);
     lua_add_string_field ("type", "photo");
+    lua_add_string_field ("caption",  M->caption);
     break;
   /*case tgl_message_media_video:
   case tgl_message_media_video_encr:
@@ -263,6 +264,8 @@ void push_media (struct tgl_message_media *M) {
   case tgl_message_media_document_encr:
     lua_newtable (luaState);
     lua_add_string_field ("type", "document");
+    lua_add_string_field ("caption",  M->document->caption);
+    lua_add_num_field ("size",  M->document->size);
     break;
   case tgl_message_media_unsupported:
     lua_newtable (luaState);
@@ -285,6 +288,7 @@ void push_media (struct tgl_message_media *M) {
   default:
     lua_pushstring (luaState, "???");
   }
+  
 }
 
 void push_message (struct tgl_message *M) {  
@@ -315,6 +319,12 @@ void push_message (struct tgl_message *M) {
         push_message (MR);
         lua_settable (luaState, -3);
     }
+  }
+  
+  if (M->flags & TGLMF_MENTION) {
+	lua_pushstring (luaState, "mention");
+	lua_pushboolean (luaState, 1);
+	lua_settable (luaState, -3); 
   }
   lua_pushstring (luaState, "from");
   push_peer (M->from_id, tgl_peer_get (TLS, M->from_id));
@@ -475,6 +485,7 @@ enum lua_query_type {
   lq_contact_list,
   lq_dialog_list,
   lq_msg,
+  lq_reply,
   lq_send_typing,
   lq_send_typing_abort,
   lq_rename_chat,
@@ -891,6 +902,11 @@ void lua_do_all (void) {
       free (lua_ptr[p + 2]);
       p += 3;
       break;
+    case lq_reply:
+      tgl_do_send_message_reply (TLS, (long)lua_ptr[p + 1], lua_ptr[p + 2], strlen (lua_ptr[p + 2]), lua_msg_cb, lua_ptr[p]);
+      free (lua_ptr[p + 2]);
+      p += 3;
+      break;
     case lq_send_typing:
       tgl_do_send_typing (TLS, ((tgl_peer_t *)lua_ptr[p + 1])->id, tgl_typing_typing, lua_empty_cb, lua_ptr[p]);
       p += 2;
@@ -1154,6 +1170,7 @@ struct lua_function functions[] = {
   {"get_dialog_list", lq_dialog_list, { lfp_none }},
   {"rename_chat", lq_rename_chat, { lfp_chat, lfp_string, lfp_none }},
   {"send_msg", lq_msg, { lfp_peer, lfp_string, lfp_none }},
+  {"send_reply", lq_reply, { lfp_positive_number, lfp_string, lfp_none }},
   {"send_typing", lq_send_typing, { lfp_peer, lfp_none }},
   {"send_typing_abort", lq_send_typing_abort, { lfp_peer, lfp_none }},
   {"send_photo", lq_send_photo, { lfp_peer, lfp_string, lfp_none }},
